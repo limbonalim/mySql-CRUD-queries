@@ -1,23 +1,22 @@
 import { Router } from 'express';
 import { connect } from '../mySql';
+import {
+  getById,
+  queryAllSelect,
+  queryDelete,
+  queryPostData,
+  queryPutAll,
+  queryPutDescription, queryPutName,
+  querySelectByData
+} from '../SqlQuerys';
+import { IData } from '../types';
+import { tables } from '../constants';
 
 const categoryRouter = Router();
 
-interface IData {
-  name: string | null;
-  description: string | null;
-}
-
-const getById = async (id: string) => {
-  const querySelect = `SELECT * FROM categories WHERE id = '${id}'`;
-  const [result, _] = await connect.query(querySelect);
-  return result;
-};
-
 categoryRouter.get('/', async (req, res) => {
   try {
-    const querySelect = `SELECT * FROM categories`;
-    const [result, _] = await connect.query(querySelect);
+    const [result, _] = await connect.query(queryAllSelect(tables.Category));
 
     res.send(result);
   } catch (e) {
@@ -32,7 +31,7 @@ categoryRouter.get('/:id', async (req, res) => {
       res.status(400).send('invalid id');
       throw new Error('invalid id');
     }
-    const result = await getById(req.params.id);
+    const result = await getById(tables.Category, req.params.id);
 
     res.send(result);
   } catch (e) {
@@ -49,10 +48,8 @@ categoryRouter.post('/', async (req, res) => {
     };
 
     if (postData.name) {
-      const queryPost = `INSERT INTO categories (name, description) VALUES ('${postData.name}', '${postData.description}')`;
-      const querySelect = `SELECT * FROM categories WHERE name = '${postData.name}' AND description = '${postData.description}'`;
-      await connect.query(queryPost);
-      const [result, _] = await connect.query(querySelect);
+      await connect.query(queryPostData(tables.Category, postData.name, postData.description || ''));
+      const [result, _] = await connect.query(querySelectByData(tables.Category, postData.name, postData.description || ''));
       res.status(201).send(result);
     } else {
       res.status(400).send('the name must be in the request');
@@ -70,8 +67,7 @@ categoryRouter.delete('/:id', async (req, res) => {
       throw new Error('invalid id');
     }
 
-    const queryDelete = `DELETE FROM categories WHERE id = ${req.params.id}`;
-    await connect.query(queryDelete);
+    await connect.query(queryDelete(tables.Category, req.params.id));
     res.status(200).send(`ID: ${req.params.id} was been deleted`);
   } catch (e) {
     console.log(e);
@@ -92,19 +88,16 @@ categoryRouter.put('/:id', async (req, res) => {
     };
 
     if (putData.name && putData.description) {
-      const queryPut = `UPDATE categories SET name = '${putData.name}', description = '${putData.description}' WHERE id = ${req.params.id}`;
-      await connect.query(queryPut);
-      const result = await getById(req.params.id);
+      await connect.query(queryPutAll(tables.Category, req.params.id, putData.name, putData.description));
+      const result = await getById(tables.Category, req.params.id);
       res.send(result);
     } else if (putData.description) {
-      const queryPut = `UPDATE categories SET description = '${putData.description}' WHERE id = ${req.params.id}`;
-      await connect.query(queryPut);
-      const result = await getById(req.params.id);
+      await connect.query(queryPutDescription(tables.Category, req.params.id, putData.description));
+      const result = await getById(tables.Category, req.params.id);
       res.send(result);
     } else if (putData.name) {
-      const queryPut = `UPDATE categories SET name = '${putData.name}' WHERE id = ${req.params.id}`;
-      await connect.query(queryPut);
-      const result = await getById(req.params.id);
+      await connect.query(queryPutName(tables.Category, req.params.id, putData.name));
+      const result = await getById(tables.Category, req.params.id);
       res.send(result);
     } else {
       res.status(400).send('Not have data for update or not valid data');
