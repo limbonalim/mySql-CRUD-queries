@@ -1,10 +1,19 @@
-import mysql, {PoolOptions} from 'mysql2/promise';
+import mysql, { Connection, ConnectionOptions } from 'mysql2/promise';
+let connection: Connection;
 
-
-const connectionOptions: PoolOptions = {
+const connectionOptions: ConnectionOptions = {
   user: 'root',
   database: 'office',
   password: 'root'
 };
 
-export const connect = mysql.createPool(connectionOptions);
+const connectionDb = {
+  async init () {
+    connection = await mysql.createConnection(connectionOptions);
+  },
+  getConnection() {
+    return connection;
+  }
+}
+
+export default connectionDb;
