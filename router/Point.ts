@@ -1,46 +1,50 @@
 import { Router } from 'express';
-import { connect } from '../mySql';
-import {
-  getById,
-  queryAllSelect,
-  queryDelete,
-  queryPostData,
-  queryPutAll,
-  queryPutDescription, queryPutName,
-  querySelectByData
-} from '../SqlQuerys';
-import { IData } from '../types';
-import { tables } from '../constants';
+import { IData, IQueryPutOptions } from '../types';
+import connectionDb from '../mySql';
+import { ResultSetHeader, RowDataPacket } from 'mysql2';
+import { queryPut } from '../SqlQuerys';
 
 const pointRouter = Router();
 
-pointRouter.get('/', async (req, res) => {
+const querySelectById = 'SELECT * FROM points WHERE id = ?';
+const queryAllSelect = 'SELECT * FROM points';
+const queryPost = `INSERT INTO points (name, description) VALUES (?, ?)`;
+const queryDelete = `DELETE FROM points WHERE id = ?`;
+const queryPutOptions: IQueryPutOptions = {
+  nameAndDescription: 'UPDATE points SET name = ?, description = ?  WHERE id = ?',
+  description: 'UPDATE points SET description = ?  WHERE id = ?',
+  name: 'UPDATE points SET name = ?  WHERE id = ?'
+};
+
+pointRouter.get('/', async (req, res, next) => {
   try {
-    const [result, _] = await connect.query(queryAllSelect(tables.Point));
+    const [result] = await connectionDb.getConnection().query(queryAllSelect);
 
     res.send(result);
   } catch (e) {
-    console.log(e);
-    res.status(500);
+    next(e);
   }
 });
 
-pointRouter.get('/:id', async (req, res) => {
+pointRouter.get('/:id', async (req, res, next) => {
   try {
     if (!parseInt(req.params.id)) {
-      res.status(400).send('invalid id');
-      throw new Error('invalid id');
+      return res.status(400).send({error: 'invalid id'});
     }
-    const result = await getById(tables.Point, req.params.id);
 
-    res.send(result);
+    const [result] = await connectionDb.getConnection().query(querySelectById, [req.params.id]) as RowDataPacket[];
+
+    if (!result[0]) {
+      return res.status(404).send({error: 'Not found'});
+    }
+
+    res.send(result[0]);
   } catch (e) {
-    console.log(e);
-    res.status(500);
+    next(e);
   }
 });
 
-pointRouter.post('/', async (req, res) => {
+pointRouter.post('/', async (req, res, next) => {
   try {
     const postData: IData = {
       name: req.body.name,
@@ -48,38 +52,47 @@ pointRouter.post('/', async (req, res) => {
     };
 
     if (postData.name) {
-      await connect.query(queryPostData(tables.Point, postData.name, postData.description || ''));
-      const [result, _] = await connect.query(querySelectByData(tables.Point, postData.name, postData.description || ''));
-      res.status(201).send(result);
+      const [result] = await connectionDb.getConnection().query(queryPost, [postData.name, postData.description]) as ResultSetHeader[];
+
+      res.status(201).send({
+        id: result.insertId,
+        ...postData
+      });
     } else {
       res.status(400).send('the name must be in the request');
     }
   } catch (e) {
-    console.log(e);
-    res.status(500);
+    next(e);
   }
 });
 
-pointRouter.delete('/:id', async (req, res) => {
+pointRouter.delete('/:id', async (req, res, next) => {
   try {
     if (!parseInt(req.params.id)) {
-      res.status(400).send('invalid id');
-      throw new Error('invalid id');
+      return res.status(400).send({error: 'invalid id'});
     }
 
-    await connect.query(queryDelete(tables.Point, req.params.id));
+    const [result] = await connectionDb.getConnection().query(querySelectById, [req.params.id]) as RowDataPacket[];
+
+    if (!result[0]) {
+      return res.status(404).send({error: 'Not found'});
+    }
+
+    const [_] = await connectionDb.getConnection().query(queryDelete, [req.params.id]) as ResultSetHeader[];
     res.status(200).send(`ID: ${req.params.id} was been deleted`);
   } catch (e) {
-    console.log(e);
-    res.status(500);
+    next(e);
   }
 });
 
-pointRouter.put('/:id', async (req, res) => {
+pointRouter.put('/:id', async (req, res, next) => {
   try {
     if (!parseInt(req.params.id)) {
-      res.status(400).send('invalid id');
-      throw new Error('invalid id');
+      return res.status(400).send({error: 'invalid id'});
+    }
+    const [result] = await connectionDb.getConnection().query(querySelectById, [req.params.id]) as RowDataPacket[];
+    if (!result[0]) {
+      return res.status(404).send({error: 'Not found'});
     }
 
     const putData: IData = {
@@ -87,24 +100,15 @@ pointRouter.put('/:id', async (req, res) => {
       description: req.body.description ? req.body.description : null
     };
 
-    if (putData.name && putData.description) {
-      await connect.query(queryPutAll(tables.Point, req.params.id, putData.name, putData.description));
-      const result = await getById(tables.Point, req.params.id);
-      res.send(result);
-    } else if (putData.description) {
-      await connect.query(queryPutDescription(tables.Category, req.params.id, putData.description));
-      const result = await getById(tables.Point, req.params.id);
-      res.send(result);
-    } else if (putData.name) {
-      await connect.query(queryPutName(tables.Category, req.params.id, putData.name));
-      const result = await getById(tables.Point, req.params.id);
-      res.send(result);
+    if (putData.name || putData.description) {
+      await queryPut(queryPutOptions, req.params.id, putData);
+      const [result] = await connectionDb.getConnection().query(querySelectById, [req.params.id]) as RowDataPacket[];
+      res.send(result[0]);
     } else {
       res.status(400).send('Not have data for update or not valid data');
     }
   } catch (e) {
-    console.log(e);
-    res.status(500);
+    next(e);
   }
 });
 
