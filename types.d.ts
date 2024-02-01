@@ -6,6 +6,7 @@ export interface IData {
 interface IItemData extends IData{
   category: string;
   point: string;
+  image: string | null;
 }
 
 interface IQueryPutOptions {

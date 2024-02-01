@@ -1,7 +1,7 @@
 import express, { json } from 'express';
 import cors from 'cors';
 import categoryRouter from './router/Category';
-// import itemRouter from './router/Item';
+import itemRouter from './router/Item';
 import pointRouter from './router/Point';
 import connectionDb from './mySql';
 
@@ -12,7 +12,7 @@ app.use(json());
 app.use(cors());
 
 app.use('/category', categoryRouter);
-// app.use('/item', itemRouter);
+app.use('/item', itemRouter);
 app.use('/point', pointRouter);
 
 
